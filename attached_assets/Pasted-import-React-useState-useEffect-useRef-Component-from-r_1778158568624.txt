@@ -1,8 +1,9 @@
-import React, { useState, useEffect, Component } from 'react';
+import React, { useState, useEffect, useRef, Component } from 'react';
 import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
   signInAnonymously,
+  signInWithCustomToken,
   onAuthStateChanged 
 } from 'firebase/auth';
 import { 
@@ -16,26 +17,34 @@ import {
   setDoc
 } from 'firebase/firestore';
 import { 
-  ArrowLeft, Plus, Trash2, ChevronRight, ChevronLeft,
-  Sparkles, Clock, Palette, AlertTriangle, User,
-  CheckCircle2, Calendar, Repeat, Download, X,
-  Edit3, Loader2, Mail, Settings, RefreshCw
+  ArrowLeft, 
+  Plus, 
+  Trash2, 
+  ChevronRight, 
+  ChevronLeft,
+  Sparkles, 
+  Clock, 
+  Palette,
+  AlertTriangle,
+  User,
+  CheckCircle2,
+  Calendar,
+  Repeat,
+  Download,
+  X,
+  Edit3,
+  Loader2,
+  Mail,
+  Settings,
+  RefreshCw
 } from 'lucide-react';
 
-// --- Firebase 初始化 (標準化環境變數) ---
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID
-};
-
+// --- Firebase 初始化 ---
+const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const appId = import.meta.env.VITE_CUSTOM_APP_ID || 'default-app-id';
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
 // --- 自定義圖標 ---
 const FishIcon = ({ size = 12, className = "" }) => (
@@ -56,7 +65,7 @@ const ShellIcon = ({ size = 12, className = "" }) => (
 );
 
 // ==========================================
-// ErrorBoundary 錯誤邊界
+// [極致防護] ErrorBoundary 錯誤邊界
 // ==========================================
 class AppErrorBoundary extends Component {
   constructor(props) {
@@ -87,7 +96,11 @@ class AppErrorBoundary extends Component {
 }
 
 function MainCourseApp() {
-  // 狀態管理
+  // ==========================================
+  // [狀態管理] 
+  // ==========================================
+  const authAttempted = useRef(false); // 防護：確保初始化只執行一次
+  const [authDone, setAuthDone] = useState(false); // 關鍵鎖：身分驗證是否「徹底完成」
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);       
   const [dbUser, setDbUser] = useState(null);   
@@ -118,64 +131,105 @@ function MainCourseApp() {
   const [newEndTime, setNewEndTime] = useState("20:00");
   const [isRepeatMonthly, setIsRepeatMonthly] = useState(false);
 
+  // 安全取值
   const role = dbUser?.role || 'student';
 
   // ==========================================
-  // [重構] 單一真理來源的 Auth 與資料流
+  // [生命週期與連線 - 根除 Error 13]
   // ==========================================
+
+  // 階段 1: 嚴格順序登入
   useEffect(() => {
+    if (authAttempted.current) return;
+    authAttempted.current = true;
+
+    const initAuth = async () => {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          try {
+            await signInWithCustomToken(auth, __initial_auth_token);
+          } catch (e) {
+            console.warn("Token failed, anon fallback:", e);
+            await signInAnonymously(auth);
+          }
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (error) { 
+        console.error("Auth init error:", error); 
+      } finally {
+        // [核心防禦] 只有在登入動作徹底完成後，才解開下一階段的鎖
+        setAuthDone(true);
+      }
+    };
+    initAuth();
+    
+    const unsubscribe = onAuthStateChanged(auth, setUser);
+    return () => unsubscribe();
+  }, []);
+
+  // 階段 2: 安全資料監聽
+  useEffect(() => {
+    // [雙重鎖]：驗證流程沒跑完，或是抓不到身分，絕對不啟動資料庫查詢
+    if (!authDone || !user) { 
+      if (authDone && !user) setLoading(false); 
+      return; 
+    }
+
+    let isMounted = true;
     let unsubProfile = null;
     let unsubCourses = null;
-
-    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
-      if (currentUser) {
-        setUser(currentUser);
-        const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'info');
-        unsubProfile = onSnapshot(profileRef, (snap) => {
-          if (snap.exists()) {
-            setDbUser(snap.data());
-            setNeedsSetup(false);
-          } else {
-            setDbUser(null);
-            setNeedsSetup(true); 
-          }
-          setLoading(false);
-        }, (error) => {
-          console.error("Profile fetch error:", error);
-          setNeedsSetup(true);
-          setLoading(false);
-        });
-
-        const coursesQuery = collection(db, 'artifacts', appId, 'public', 'data', 'courses');
-        unsubCourses = onSnapshot(coursesQuery, (snapshot) => {
-          try {
-            const newCourses = {};
-            snapshot.forEach(d => {
-                const data = d.data();
-                if(!data || !data.dateKey) return; 
-                if(!newCourses[data.dateKey]) newCourses[data.dateKey] = [];
-                newCourses[data.dateKey].push({ id: d.id, ...data });
-            });
-            setCourses(newCourses);
-          } catch (e) { console.error("Parse courses error:", e); }
-        });
-
-      } else {
-        try {
-          await signInAnonymously(auth);
-        } catch (error) {
-          console.error("Auth init error:", error);
-          setLoading(false);
+    
+    try {
+      // 2-1: 監聽個人資料
+      const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'info');
+      unsubProfile = onSnapshot(profileRef, (snap) => {
+        if (!isMounted) return;
+        if (snap.exists()) {
+          setDbUser(snap.data());
+          setNeedsSetup(false);
+        } else {
+          setDbUser(null);
+          setNeedsSetup(true); 
         }
-      }
-    });
+        setLoading(false);
+      }, (error) => {
+        console.error("Profile fetch error:", error);
+        if (isMounted) { setNeedsSetup(true); setLoading(false); }
+      });
+
+      // 2-2: 監聽公開課程資料
+      const coursesQuery = collection(db, 'artifacts', appId, 'public', 'data', 'courses');
+      unsubCourses = onSnapshot(coursesQuery, (snapshot) => {
+        if (!isMounted) return;
+        try {
+          const newCourses = {};
+          snapshot.forEach(d => {
+              const data = d.data();
+              if(!data || !data.dateKey) return; 
+              if(!newCourses[data.dateKey]) newCourses[data.dateKey] = [];
+              newCourses[data.dateKey].push({ id: d.id, ...data });
+          });
+          setCourses(newCourses);
+        } catch (e) { console.error("Parse courses error:", e); }
+      }, (error) => {
+        console.error("Courses fetch error:", error);
+      });
+    } catch (e) {
+      console.error("Listener setup failed:", e);
+      if (isMounted) setLoading(false);
+    }
 
     return () => {
-      unsubscribeAuth();
+      isMounted = false;
       if (unsubProfile) unsubProfile();
       if (unsubCourses) unsubCourses();
     };
-  }, []);
+  }, [authDone, user]);
+
+  // ==========================================
+  // [核心邏輯處理]
+  // ==========================================
 
   const handleOpenProfileEdit = () => {
     if (dbUser) {
@@ -236,6 +290,7 @@ function MainCourseApp() {
 
   const handleAddCourse = async (dateKey, title, startTime, endTime, repeatMonthly) => {
     if (role !== 'admin' || !user || !dateKey) return;
+    
     try {
       const [y, m, d] = dateKey.split('-').map(Number);
       if (!y || !m || !d) return; 
@@ -271,6 +326,7 @@ function MainCourseApp() {
   const handleUpdateCourseStatus = async () => {
     if (role !== 'admin' || !user || !editingCourse?.id) return;
     try {
+      // [極簡化] 只允許編輯標題，不干涉系統自動化狀態
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'courses', editingCourse.id), {
          title: editTitle || '未命名課程'
       });
@@ -289,6 +345,7 @@ function MainCourseApp() {
   const handleConfirmBooking = async () => {
     if (!bookingSlot?.course?.id || !dbUser || !user) return;
     try {
+      // 學生預約後，強制轉換為 booked 狀態
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'courses', bookingSlot.course.id), {
         isBooked: true, status: 'booked',
         bookedBy: dbUser.name || 'Student', 
@@ -384,6 +441,10 @@ function MainCourseApp() {
     }
   };
 
+  // ==========================================
+  // [純粹渲染函數] 
+  // ==========================================
+
   const renderSetupScreen = () => (
     <div className="flex-1 flex flex-col items-center justify-center p-6 z-10 relative animate-in fade-in zoom-in-95 duration-500 w-full h-full overflow-y-auto">
       <div className="w-full max-w-sm bg-[#1e1b4b]/80 border border-pink-500/30 rounded-3xl p-8 shadow-[0_0_50px_rgba(236,72,153,0.15)] relative overflow-hidden backdrop-blur-xl shrink-0 my-auto">
@@ -425,6 +486,7 @@ function MainCourseApp() {
                </div>
             </div>
           </div>
+
           {setupError && <p className="text-xs text-red-400 font-bold text-center mt-2">{setupError}</p>}
         </div>
         
@@ -501,6 +563,7 @@ function MainCourseApp() {
                      const dayCourses = day ? (courses[dateKey] || []) : [];
                      const isToday = day && day.getDate() === new Date().getDate() && day.getMonth() === new Date().getMonth();
                      
+                     // [防護] 狀態一律以 automated data 為主
                      const hasAvailable = dayCourses.some(c => c && (c.status === 'open' || (!c.status && !c.isBooked)));
                      const bookedCourses = dayCourses.filter(c => c && (c.status === 'booked' || c.isBooked));
                      const bookedColors = [...new Set(bookedCourses.map(c => c?.studentColor || '#ec4899'))];
@@ -581,6 +644,7 @@ function MainCourseApp() {
             ) : (
                dayCourses.map(course => {
                  if (!course) return null; 
+                 // [簡化狀態] 系統自動判定是否已被預約
                  const isSlotOpen = course.status === 'open' || (!course.status && !course.isBooked);
                  const isBooked = !isSlotOpen;
                  
@@ -695,6 +759,10 @@ function MainCourseApp() {
     );
   };
 
+  // ==========================================
+  // [主結構回傳]
+  // ==========================================
+
   const renderLoadingOverlay = () => (
     <div className="fixed inset-0 z-[999] flex items-center justify-center bg-[#0f0a20]/90 backdrop-blur-md">
        <div className="flex flex-col items-center">
@@ -704,43 +772,50 @@ function MainCourseApp() {
     </div>
   );
 
-  if (loading) {
+  // [絕對防禦] 只有在登入動作 100% 走完，才會釋放畫面
+  if (loading || !authDone) {
     return (
-      <div className="w-full h-screen bg-[#0f0a20]">
+      <div className="w-full h-screen bg-gradient-to-br from-[#240078] to-[#C4529E]">
         {renderLoadingOverlay()}
       </div>
     );
   }
 
   return (
-    <div className="w-full h-screen bg-gradient-to-br from-[#0f0a20] via-[#1a0535] to-[#240078] flex justify-center items-center font-sans overflow-hidden text-slate-200 selection:bg-purple-500/30 relative">
+    <div className="w-full h-screen bg-gradient-to-br from-[#240078] to-[#C4529E] flex justify-center items-center font-sans overflow-hidden text-slate-200 selection:bg-purple-500/30 relative">
       <style>{`
         @keyframes bubble-rise { 0% { transform: translateY(110vh) scale(0.5); opacity: 0; } 50% { opacity: 0.8; } 100% { transform: translateY(-10vh) scale(1.2); opacity: 0; } }
         @keyframes ember-float { 0% { transform: translateY(0) translateX(0) scale(1); opacity: 1; filter: hue-rotate(0deg); } 100% { transform: translateY(-100px) translateX(20px) scale(0); opacity: 0; filter: hue-rotate(90deg); } }
+        @keyframes spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         .bubble-bg { position: absolute; bottom: -20px; color: #a78bfa; opacity: 0.3; pointer-events: none; z-index: 0; animation: bubble-rise linear infinite; }
         .ember-bg { position: absolute; color: #fb7185; pointer-events: none; z-index: 5; animation: ember-float linear infinite; }
+        .animate-spin-slow { animation: spin-slow 8s linear infinite; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(168,85,247,0.3); border-radius: 10px; }
         input, button, select { font-family: ui-sans-serif, system-ui, -apple-system, sans-serif !important; }
       `}</style>
 
+      {/* --- 背景動畫特效 --- */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
         {[...Array(15)].map((_, i) => (<div key={`b-${i}`} className="bubble-bg" style={{ left: `${Math.random()*100}%`, animationDuration: `${Math.random()*10+10}s`, animationDelay: `${Math.random()*5}s` }}><div className="rounded-full border border-purple-400/30 bg-purple-500/10" style={{width: Math.random()*20+10, height: Math.random()*20+10}}></div></div>))}
         {[...Array(25)].map((_, i) => (<div key={`e-${i}`} className="ember-bg" style={{ left: `${Math.random()*100}%`, top: `${Math.random()*100 + 20}%`, animationDuration: `${Math.random()*4+2}s`, animationDelay: `${Math.random()*2}s`, width: Math.random() * 4 + 2, height: Math.random() * 4 + 2, borderRadius: '50%', background: '#fb7185', boxShadow: '0 0 10px #f43f5e' }} />))}
       </div>
 
+      {/* --- 彈出視窗 --- */}
       {renderEditCourseModal()}
       {renderBookingConfirmModal()}
       {renderDeleteConfirmModal()}
       {renderImagePreviewModal()}
 
-      <div className="relative z-10 w-full max-w-md h-full sm:h-[95vh] sm:rounded-[2.5rem] bg-[#0f172a]/70 backdrop-blur-2xl border border-white/20 shadow-[0_0_50px_rgba(0,0,0,0.3)] flex flex-col overflow-hidden ring-1 ring-white/10 font-sans">
+      {/* --- 主要 UI 容器 --- */}
+      <div className="relative z-10 w-full max-w-md h-full sm:h-[95vh] sm:rounded-[2.5rem] bg-[#0f172a]/40 backdrop-blur-2xl border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden ring-1 ring-white/5 font-sans">
         
         {(!user || needsSetup || isEditingProfile) ? (
             renderSetupScreen()
         ) : (
           <>
+            {/* Header 區域 */}
             <div className="h-20 flex items-center justify-between px-6 shrink-0 z-20 border-b border-white/5 bg-black/10"> 
               {view !== 'month' ? (
                  <button onClick={handleBack} className="flex items-center gap-1 text-purple-200 hover:text-white transition-colors bg-white/5 hover:bg-white/10 px-3 py-1.5 rounded-full backdrop-blur-md border border-white/10 shadow-sm">
@@ -772,6 +847,7 @@ function MainCourseApp() {
               </div>
             </div>
 
+            {/* 內容區域 */}
             <div className="flex-1 px-4 pb-4 pt-4 overflow-hidden relative z-10 flex flex-col">
                {view === 'month' ? renderMonthView() : renderDayView()}
             </div>
@@ -782,6 +858,7 @@ function MainCourseApp() {
   );
 }
 
+// 將原本的主程式包裝進 ErrorBoundary 中導出
 export default function CourseBookingSystem() {
   return (
     <AppErrorBoundary>
