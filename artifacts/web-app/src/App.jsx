@@ -706,17 +706,19 @@ function MainCourseApp() {
 
   if (loading) {
     return (
-      <div className="w-full h-screen bg-[#0f0a20]">
+      <div className="w-full h-screen bg-gradient-to-br from-[#240078] to-[#C4529E]">
         {renderLoadingOverlay()}
       </div>
     );
   }
 
   return (
-    <div className="w-full h-screen bg-gradient-to-br from-[#0f0a20] via-[#1a0535] to-[#240078] flex justify-center items-center font-sans overflow-hidden text-slate-200 selection:bg-purple-500/30 relative">
+    <div className="w-full h-screen bg-gradient-to-br from-[#240078] to-[#C4529E] flex justify-center items-center font-sans overflow-hidden text-slate-200 selection:bg-purple-500/30 relative">
       <style>{`
         @keyframes bubble-rise { 0% { transform: translateY(110vh) scale(0.5); opacity: 0; } 50% { opacity: 0.8; } 100% { transform: translateY(-10vh) scale(1.2); opacity: 0; } }
         @keyframes ember-float { 0% { transform: translateY(0) translateX(0) scale(1); opacity: 1; filter: hue-rotate(0deg); } 100% { transform: translateY(-100px) translateX(20px) scale(0); opacity: 0; filter: hue-rotate(90deg); } }
+        @keyframes spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .animate-spin-slow { animation: spin-slow 8s linear infinite; }
         .bubble-bg { position: absolute; bottom: -20px; color: #a78bfa; opacity: 0.3; pointer-events: none; z-index: 0; animation: bubble-rise linear infinite; }
         .ember-bg { position: absolute; color: #fb7185; pointer-events: none; z-index: 5; animation: ember-float linear infinite; }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
@@ -735,7 +737,7 @@ function MainCourseApp() {
       {renderDeleteConfirmModal()}
       {renderImagePreviewModal()}
 
-      <div className="relative z-10 w-full max-w-md h-full sm:h-[95vh] sm:rounded-[2.5rem] bg-[#0f172a]/70 backdrop-blur-2xl border border-white/20 shadow-[0_0_50px_rgba(0,0,0,0.3)] flex flex-col overflow-hidden ring-1 ring-white/10 font-sans">
+      <div className="relative z-10 w-full max-w-md h-full sm:h-[95vh] sm:rounded-[2.5rem] bg-[#0f172a]/40 backdrop-blur-2xl border border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden ring-1 ring-white/5 font-sans">
         
         {(!user || needsSetup || isEditingProfile) ? (
             renderSetupScreen()
