@@ -3,6 +3,7 @@ import { initializeApp } from 'firebase/app';
 import { 
   getAuth, 
   signInAnonymously,
+  signOut,
   onAuthStateChanged 
 } from 'firebase/auth';
 import { 
@@ -19,7 +20,7 @@ import {
   ArrowLeft, Plus, Trash2, ChevronRight, ChevronLeft,
   Sparkles, Clock, Palette, AlertTriangle, User,
   CheckCircle2, Calendar, Repeat, Download, X,
-  Edit3, Loader2, Mail, Settings, RefreshCw
+  Edit3, Loader2, Mail, Settings, RefreshCw, LogOut
 } from 'lucide-react';
 
 // --- Firebase 初始化 (標準化環境變數) ---
@@ -176,6 +177,15 @@ function MainCourseApp() {
       if (unsubCourses) unsubCourses();
     };
   }, []);
+
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+      setDbUser(null);
+      setNeedsSetup(true);
+      setUser(null);
+    } catch (e) { console.error("Sign out error:", e); }
+  };
 
   const handleOpenProfileEdit = () => {
     if (dbUser) {
@@ -771,6 +781,7 @@ function MainCourseApp() {
                    </span>
                 </div>
                 <button onClick={handleOpenProfileEdit} className="p-1.5 text-white/50 hover:text-white hover:bg-white/5 rounded-full transition-colors" title="設定個人檔案"><Settings size={16} /></button>
+                <button onClick={handleSignOut} className="p-1.5 text-white/50 hover:text-red-400 hover:bg-red-500/10 rounded-full transition-colors" title="登出"><LogOut size={16} /></button>
               </div>
             </div>
 
