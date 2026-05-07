@@ -93,7 +93,7 @@ function MainCourseApp() {
   const [dbUser, setDbUser] = useState(null);   
   const [needsSetup, setNeedsSetup] = useState(true); 
   const [isEditingProfile, setIsEditingProfile] = useState(false);
-
+  
   const [view, setView] = useState('month'); 
   const [currentDate, setCurrentDate] = useState(new Date()); 
   const [selectedDate, setSelectedDate] = useState(null);
@@ -130,7 +130,6 @@ function MainCourseApp() {
     const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
-        // 確保身分驗證完成後，才開始監聽 Firestore
         const profileRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'profile', 'info');
         unsubProfile = onSnapshot(profileRef, (snap) => {
           if (snap.exists()) {
@@ -140,14 +139,13 @@ function MainCourseApp() {
             setDbUser(null);
             setNeedsSetup(true); 
           }
-          setLoading(false); // 資料載入完畢，解除 Loading
+          setLoading(false);
         }, (error) => {
           console.error("Profile fetch error:", error);
           setNeedsSetup(true);
           setLoading(false);
         });
 
-        // 監聽公開課程資料
         const coursesQuery = collection(db, 'artifacts', appId, 'public', 'data', 'courses');
         unsubCourses = onSnapshot(coursesQuery, (snapshot) => {
           try {
@@ -163,7 +161,6 @@ function MainCourseApp() {
         });
 
       } else {
-        // 如果沒有登入狀態，自動觸發匿名登入
         try {
           await signInAnonymously(auth);
         } catch (error) {
@@ -242,7 +239,7 @@ function MainCourseApp() {
     try {
       const [y, m, d] = dateKey.split('-').map(Number);
       if (!y || !m || !d) return; 
-
+      
       const targetDate = new Date(y, m - 1, d);
       const datesToAdd = [];
 
@@ -405,7 +402,7 @@ function MainCourseApp() {
         <p className="text-xs text-pink-200/70 mb-6 text-center relative z-10 leading-relaxed">
           {isEditingProfile ? '你可以隨時更新你的名字與代表色' : <>歡迎來到課程系統<br/>請輸入 Gmail、英文名並選擇代表色</>}
         </p>
-
+        
         <div className="space-y-4 relative z-10 mb-6">
           <div className="relative">
             <Mail className="absolute left-3 top-3.5 text-white/50" size={18} />
@@ -415,7 +412,7 @@ function MainCourseApp() {
             <User className="absolute left-3 top-3.5 text-white/50" size={18} />
             <input type="text" placeholder="英文名字 (如: Emma)" value={setupName} onChange={(e) => setSetupName(e.target.value)} className="w-full bg-black/40 text-white border border-white/20 rounded-xl pl-10 pr-4 py-3 font-medium focus:outline-none focus:border-pink-500 transition-colors text-sm"/>
           </div>
-
+          
           <div className="bg-black/40 p-3.5 rounded-xl border border-white/10 flex items-center justify-between gap-4">
             <div className="flex flex-col">
                <p className="text-xs text-white/90 font-bold">專屬代表色</p>
@@ -430,7 +427,7 @@ function MainCourseApp() {
           </div>
           {setupError && <p className="text-xs text-red-400 font-bold text-center mt-2">{setupError}</p>}
         </div>
-
+        
         <button onClick={handleConnect} disabled={!setupEmail.trim() || !setupName.trim() || isSavingSetup || !user} className="w-full py-3.5 rounded-xl text-white font-black tracking-widest shadow-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed relative z-10 flex items-center justify-center gap-2" style={{ backgroundColor: setupColor }}>
           {!user ? <><Loader2 size={18} className="animate-spin" /> 連線中...</> : (isSavingSetup ? <><Loader2 size={18} className="animate-spin" /> 處理中...</> : (isEditingProfile ? '儲存變更' : '登入並綁定'))}
         </button>
@@ -445,7 +442,7 @@ function MainCourseApp() {
         <div className="w-full max-w-sm bg-[#1e1b4b] border border-purple-500/50 rounded-2xl p-6 shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 right-0 p-4 opacity-10 text-purple-400"><Edit3 size={80} /></div>
           <h3 className="text-xl font-black text-white mb-6 flex items-center gap-2 relative z-10"><Palette size={20} className="text-purple-400" /> 編輯課程名稱</h3>
-
+          
           <div className="space-y-4 relative z-10">
             <div>
               <input type="text" placeholder="輸入課程名稱" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} className="w-full bg-black/40 text-white border border-purple-500/30 rounded-xl px-4 py-3 font-medium focus:outline-none focus:border-purple-500 transition-colors text-sm"/>
@@ -503,11 +500,11 @@ function MainCourseApp() {
                      const dateKey = formatDateKey(day);
                      const dayCourses = day ? (courses[dateKey] || []) : [];
                      const isToday = day && day.getDate() === new Date().getDate() && day.getMonth() === new Date().getMonth();
-
+                     
                      const hasAvailable = dayCourses.some(c => c && (c.status === 'open' || (!c.status && !c.isBooked)));
                      const bookedCourses = dayCourses.filter(c => c && (c.status === 'booked' || c.isBooked));
                      const bookedColors = [...new Set(bookedCourses.map(c => c?.studentColor || '#ec4899'))];
-
+                     
                      return (
                        <div key={dIndex} onClick={(e) => { if (day) { e.stopPropagation(); goToDay(day); } }} className={`flex flex-col items-center justify-center h-12 rounded-lg transition-all ${day ? 'cursor-pointer hover:bg-white/10' : ''}`}>
                           <span className={`text-sm font-sans ${day ? 'text-slate-300' : ''} ${isToday ? 'font-black text-white scale-125 transition-transform' : ''}`}>{day ? day.getDate() : ''}</span>
@@ -586,12 +583,12 @@ function MainCourseApp() {
                  if (!course) return null; 
                  const isSlotOpen = course.status === 'open' || (!course.status && !course.isBooked);
                  const isBooked = !isSlotOpen;
-
+                 
                  const sColor = course.studentColor || '#ec4899';
                  const cTitle = course.title || '未命名課程';
                  const cStart = course.startTime || '00:00';
                  const cEnd = course.endTime || '00:00';
-
+                 
                  if (role === 'student') {
                    return (
                      <div key={course.id || Math.random()} className={`flex items-center gap-3 rounded-xl p-3 backdrop-blur-sm border transition-all ${isBooked ? 'bg-black/20 border-white/5 opacity-60 grayscale-[0.5]' : 'bg-[#1e1b4b]/40 border-emerald-500/20 hover:border-emerald-500/50 hover:bg-[#2e1065]/60 hover:shadow-[0_0_15px_rgba(52,211,153,0.1)]'}`}>
@@ -728,7 +725,6 @@ function MainCourseApp() {
         input, button, select { font-family: ui-sans-serif, system-ui, -apple-system, sans-serif !important; }
       `}</style>
 
-      {/* --- 背景動畫特效 --- */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
         {[...Array(15)].map((_, i) => (<div key={`b-${i}`} className="bubble-bg" style={{ left: `${Math.random()*100}%`, animationDuration: `${Math.random()*10+10}s`, animationDelay: `${Math.random()*5}s` }}><div className="rounded-full border border-purple-400/30 bg-purple-500/10" style={{width: Math.random()*20+10, height: Math.random()*20+10}}></div></div>))}
         {[...Array(25)].map((_, i) => (<div key={`e-${i}`} className="ember-bg" style={{ left: `${Math.random()*100}%`, top: `${Math.random()*100 + 20}%`, animationDuration: `${Math.random()*4+2}s`, animationDelay: `${Math.random()*2}s`, width: Math.random() * 4 + 2, height: Math.random() * 4 + 2, borderRadius: '50%', background: '#fb7185', boxShadow: '0 0 10px #f43f5e' }} />))}
@@ -740,7 +736,7 @@ function MainCourseApp() {
       {renderImagePreviewModal()}
 
       <div className="relative z-10 w-full max-w-md h-full sm:h-[95vh] sm:rounded-[2.5rem] bg-[#0f172a]/70 backdrop-blur-2xl border border-white/20 shadow-[0_0_50px_rgba(0,0,0,0.3)] flex flex-col overflow-hidden ring-1 ring-white/10 font-sans">
-
+        
         {(!user || needsSetup || isEditingProfile) ? (
             renderSetupScreen()
         ) : (
@@ -761,7 +757,7 @@ function MainCourseApp() {
                     )}
                  </div>
               )}
-
+              
               <div className="flex items-center gap-3">
                 <span className={`text-[10px] font-bold px-2 py-1 rounded border ${role === 'admin' ? 'bg-purple-900/50 border-purple-500/50 text-purple-200' : 'bg-pink-900/30 border-pink-500/30 text-pink-200'}`}>
                   {role === 'admin' ? '老師 Admin' : '學生'}
