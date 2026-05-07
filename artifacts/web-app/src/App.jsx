@@ -13,6 +13,7 @@ import {
   onSnapshot, 
   deleteDoc, 
   doc, 
+  getDoc,
   updateDoc, 
   setDoc
 } from 'firebase/firestore';
@@ -180,10 +181,13 @@ function MainCourseApp() {
 
   const handleSignOut = async () => {
     try {
+      setIsSavingSetup(false);
+      setIsEditingProfile(false);
+      setSetupEmail("");
+      setSetupName("");
+      setSetupColor("#ec4899");
+      setSetupError("");
       await signOut(auth);
-      setDbUser(null);
-      setNeedsSetup(true);
-      setUser(null);
     } catch (e) { console.error("Sign out error:", e); }
   };
 
@@ -219,15 +223,41 @@ function MainCourseApp() {
     setIsSavingSetup(true);
     setSetupError("");
     try {
+      const emailKey = setupEmail.trim().toLowerCase().replace(/[.@]/g, '_');
       const isAdmin = setupEmail.trim().toLowerCase() === 'yuuglish@gmail.com';
-      const userData = {
-         uid: user.uid,
-         email: setupEmail.trim(),
-         name: setupName.trim(),
-         color: setupColor,
-         role: isAdmin ? 'admin' : 'student'
-      };
-      await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'info'), userData);
+
+      // 先查 email 索引，找到已有的舊資料
+      const emailRef = doc(db, 'artifacts', appId, 'usersByEmail', emailKey);
+      const emailSnap = await getDoc(emailRef);
+
+      let userData;
+      if (emailSnap.exists() && !isAdmin) {
+        // 沿用舊的名字與代表色，只更新 uid
+        const existing = emailSnap.data();
+        userData = {
+          ...existing,
+          uid: user.uid,
+          email: setupEmail.trim(),
+          name: setupName.trim(),
+          color: setupColor,
+        };
+      } else {
+        userData = {
+          uid: user.uid,
+          email: setupEmail.trim(),
+          name: setupName.trim(),
+          color: setupColor,
+          role: isAdmin ? 'admin' : 'student'
+        };
+      }
+
+      // 同時儲存到 UID 路徑 + email 索引路徑
+      const profileRef = doc(db, 'artifacts', appId, 'users', user.uid, 'profile', 'info');
+      await Promise.all([
+        setDoc(profileRef, userData),
+        setDoc(emailRef, userData),
+      ]);
+
       setDbUser(userData);
       setIsEditingProfile(false);
       setNeedsSetup(false);
@@ -302,7 +332,7 @@ function MainCourseApp() {
       await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'courses', bookingSlot.course.id), {
         isBooked: true, status: 'booked',
         bookedBy: dbUser.name || 'Student', 
-        studentUid: dbUser.uid || user.uid, 
+        studentUid: dbUser.email || user.uid, 
         studentColor: dbUser.color || '#ec4899'
       });
       setBookingSlot(null);
@@ -372,7 +402,7 @@ function MainCourseApp() {
         ctx.fillText(day.getDate(), x + 15, y + 35);
 
         const dayCourses = courses[formatDateKey(day)] || [];
-        const studentCourses = dbUser ? dayCourses.filter(c => c && (c.status === 'booked' || c.status === 'confirmed' || c.isBooked) && c.studentUid === dbUser.uid) : [];
+        const studentCourses = dbUser ? dayCourses.filter(c => c && (c.status === 'booked' || c.status === 'confirmed' || c.isBooked) && (c.studentUid === dbUser.email || c.studentUid === dbUser.uid)) : [];
 
         if (studentCourses.length > 0) {
           ctx.save(); ctx.globalAlpha = 0.25; ctx.fillStyle = dbUser?.color || '#ec4899';
@@ -527,7 +557,7 @@ function MainCourseApp() {
                           <div className="flex gap-0.5 h-1 mt-1 justify-center flex-wrap max-w-[24px]">
                              {hasAvailable && <div className="w-1 h-1 rounded-full bg-emerald-400 shadow-[0_0_5px_#34d399]"></div>}
                              {role === 'student' ? (
-                               bookedCourses.some(c => c?.studentUid === dbUser?.uid) && (
+                               bookedCourses.some(c => c?.studentUid === dbUser?.email || c?.studentUid === dbUser?.uid) && (
                                  <div className="w-1 h-1 rounded-full shadow-sm" style={{ backgroundColor: dbUser?.color || '#ec4899', boxShadow: `0 0 5px ${dbUser?.color || '#ec4899'}` }}></div>
                                )
                              ) : (
