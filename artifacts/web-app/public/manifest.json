@@ -1,0 +1,20 @@
+{
+  "name": "Amber課程預約",
+  "short_name": "Yuiland",
+  "start_url": "/yuiland-course/",
+  "display": "standalone",
+  "background_color": "#EFDBF5",
+  "theme_color": "#C4529E",
+  "icons": [
+    {
+      "src": "logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
