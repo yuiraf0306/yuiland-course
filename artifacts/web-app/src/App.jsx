@@ -441,6 +441,12 @@ function MainCourseApp() {
         <button onClick={handleConnect} disabled={!setupEmail.trim() || !setupName.trim() || isSavingSetup || !user} className="w-full py-3.5 rounded-xl text-white font-black tracking-widest shadow-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed relative z-10 flex items-center justify-center gap-2" style={{ backgroundColor: setupColor }}>
           {!user ? <><Loader2 size={18} className="animate-spin" /> 連線中...</> : (isSavingSetup ? <><Loader2 size={18} className="animate-spin" /> 處理中...</> : (isEditingProfile ? '儲存變更' : '登入並綁定'))}
         </button>
+
+        {isEditingProfile && (
+          <button onClick={handleSignOut} className="w-full mt-3 py-3 rounded-xl text-red-400 font-bold border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition-colors relative z-10 flex items-center justify-center gap-2">
+            <LogOut size={16} /> 登出帳號
+          </button>
+        )}
       </div>
     </div>
   );
@@ -781,7 +787,6 @@ function MainCourseApp() {
                    </span>
                 </div>
                 <button onClick={handleOpenProfileEdit} className="p-1.5 text-white/50 hover:text-white hover:bg-white/5 rounded-full transition-colors" title="設定個人檔案"><Settings size={16} /></button>
-                <button onClick={handleSignOut} className="p-1.5 text-white/50 hover:text-red-400 hover:bg-red-500/10 rounded-full transition-colors" title="登出"><LogOut size={16} /></button>
               </div>
             </div>
 
