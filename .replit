@@ -30,3 +30,14 @@ externalPort = 8081
 [[ports]]
 localPort = 22965
 externalPort = 80
+
+[userenv]
+
+[userenv.shared]
+VITE_FIREBASE_API_KEY = "AIzaSyByz_Erx2D2CV-4JVTOAV9DFxB-aSHXkcw"
+VITE_FIREBASE_AUTH_DOMAIN = "yuilandonlinecourse.firebaseapp.com"
+VITE_FIREBASE_PROJECT_ID = "yuilandonlinecourse"
+VITE_FIREBASE_STORAGE_BUCKET = "yuilandonlinecourse.firebasestorage.app"
+VITE_FIREBASE_MESSAGING_SENDER_ID = "1061847802674"
+VITE_FIREBASE_APP_ID = "1:1061847802674:web:6b7e3486c8d26f26b72d2b"
+VITE_CUSTOM_APP_ID = "yuilandonlinecourse"
