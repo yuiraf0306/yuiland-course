@@ -358,15 +358,67 @@ function MainCourseApp() {
     try {
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
-      canvas.width = 1080; canvas.height = 1600; 
+      canvas.width = 1080;
+      const monthName = currentDate.toLocaleString('en-US', { month: 'long' });
 
-      const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-      grad.addColorStop(0, '#240078'); grad.addColorStop(1, '#C4529E');
+      if (role === 'admin') {
+        canvas.width = 1400;
+        canvas.height = 1580;
+        const calendarDays = getDaysInMonth(currentDate);
+        while (calendarDays.length < 42) calendarDays.push(null);
+        const bookedCount = calendarDays.reduce((total, day) => total + (day ? (courses[formatDateKey(day)] || []).filter(course => course && (course.status === 'booked' || course.status === 'confirmed' || course.isBooked)).length : 0), 0);
+        const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+        grad.addColorStop(0, '#240078'); grad.addColorStop(1, '#C4529E');
+        ctx.fillStyle = grad; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.4)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center';
+        ctx.font = 'bold 50px sans-serif'; ctx.fillText('Yuiland', canvas.width / 2, 120);
+        ctx.font = 'bold 30px sans-serif'; ctx.fillStyle = '#fbcfe8'; ctx.fillText(`Teacher Schedule - ${monthName} ${currentDate.getFullYear()}`, canvas.width / 2, 180);
+        ctx.font = '24px sans-serif'; ctx.fillStyle = '#cbd5e1'; ctx.fillText(`預約總數：${bookedCount}`, canvas.width / 2, 220);
+
+        const startX = 50; const startY = 310;
+        const cellWidth = (canvas.width - 100) / 7; const cellHeight = 200;
+        const weekDays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+        ctx.font = 'bold 20px sans-serif'; ctx.fillStyle = '#e9d5ff';
+        weekDays.forEach((dayName, index) => ctx.fillText(dayName, startX + index * cellWidth + cellWidth / 2, startY - 20));
+
+        calendarDays.forEach((day, index) => {
+          const row = Math.floor(index / 7); const col = index % 7;
+          const x = startX + col * cellWidth; const y = startY + row * cellHeight;
+          ctx.textAlign = 'left';
+          ctx.fillStyle = day ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.025)';
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)'; ctx.lineWidth = 1;
+          ctx.fillRect(x, y, cellWidth, cellHeight); ctx.strokeRect(x, y, cellWidth, cellHeight);
+          if (!day) return;
+
+          ctx.fillStyle = '#fbcfe8'; ctx.font = 'bold 24px sans-serif';
+          ctx.fillText(day.getDate(), x + 12, y + 30);
+          const bookedCourses = (courses[formatDateKey(day)] || [])
+            .filter(course => course && (course.status === 'booked' || course.status === 'confirmed' || course.isBooked))
+            .sort(compareTime)
+            .slice(0, 5);
+          bookedCourses.forEach((course, courseIndex) => {
+            const text = `${course.startTime || '--:--'} ${course.bookedBy || '未提供姓名'}`;
+            ctx.fillStyle = courseIndex % 2 === 0 ? 'rgba(236, 72, 153, 0.24)' : 'rgba(255, 255, 255, 0.07)';
+            ctx.fillRect(x + 8, y + 42 + courseIndex * 29, cellWidth - 16, 24);
+            ctx.fillStyle = '#ffffff'; ctx.font = 'bold 16px sans-serif';
+            let fittedText = text;
+            while (ctx.measureText(fittedText).width > cellWidth - 28 && fittedText.length > 4) fittedText = `${fittedText.slice(0, -2)}...`;
+            ctx.fillText(fittedText, x + 14, y + 60 + courseIndex * 29);
+          });
+        });
+        setPreviewImage(canvas.toDataURL('image/png'));
+        return;
+      }
+
+      canvas.height = 1600;
+        const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+        grad.addColorStop(0, '#240078'); grad.addColorStop(1, '#C4529E');
       ctx.fillStyle = grad; ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.fillStyle = 'rgba(15, 23, 42, 0.4)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       ctx.fillStyle = '#ffffff'; ctx.textAlign = 'center';
-      const monthName = currentDate.toLocaleString('en-US', { month: 'long' });
       ctx.font = 'bold 50px sans-serif'; ctx.fillText('Yuiland', canvas.width / 2, 120);
       ctx.font = 'bold 30px sans-serif'; ctx.fillStyle = '#fbcfe8'; ctx.fillText(`My Schedule - ${monthName} ${currentDate.getFullYear()}`, canvas.width / 2, 180);
       ctx.font = '24px sans-serif'; ctx.fillStyle = '#cbd5e1'; ctx.fillText(`Student: ${dbUser?.name || 'Student'}`, canvas.width / 2, 220);
@@ -553,7 +605,7 @@ function MainCourseApp() {
                      
                      return (
                        <div key={dIndex} onClick={(e) => { if (day) { e.stopPropagation(); goToDay(day); } }} className={`flex flex-col items-center justify-center h-12 rounded-lg transition-all ${day ? 'cursor-pointer hover:bg-white/10' : ''}`}>
-                          <span className={`text-sm font-sans ${day ? 'text-slate-300' : ''} ${isToday ? 'font-black text-white scale-125 transition-transform' : ''}`}>{day ? day.getDate() : ''}</span>
+                          <span className={`text-sm font-sans ${day ? 'text-slate-300' : ''} ${isToday ? 'font-black text-white scale-125 transition-transform origin-left' : ''}`}>{day ? day.getDate() : ''}</span>
                           <div className="flex gap-0.5 h-1 mt-1 justify-center flex-wrap max-w-[24px]">
                              {hasAvailable && <div className="w-1 h-1 rounded-full bg-emerald-400 shadow-[0_0_5px_#34d399]"></div>}
                              {role === 'student' ? (
@@ -798,11 +850,9 @@ function MainCourseApp() {
                  <div className="flex items-center gap-1.5 text-purple-200">
                     <ShellIcon size={20} className="drop-shadow-[0_0_8px_rgba(168,85,247,0.8)]" />
                     <span className="text-xs font-black tracking-[0.2em]">Yuiland</span>
-                    {role === 'student' && (
-                      <button onClick={generateCalendarImage} className="p-1.5 ml-1 text-pink-300 hover:text-white hover:bg-white/10 rounded-full transition-colors relative group" title="下載本月已預約課表">
+                    <button onClick={generateCalendarImage} className="p-1.5 ml-1 text-pink-300 hover:text-white hover:bg-white/10 rounded-full transition-colors relative group" title="下載本月課表">
                         <Download size={14} />
-                      </button>
-                    )}
+                    </button>
                  </div>
               )}
               
